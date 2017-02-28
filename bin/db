@@ -42,7 +42,7 @@ $console
     ->setDescription("Migrate database tables")
     ->setCode(function (InputInterface $input, OutputInterface $output) use ($container) {
         print "Migrating database.\n";
-        $container["spot"]->mapper("App\Player")->migrate();
+        $container["spot"]->mapper("App\User")->migrate();
     })
 ;
 

@@ -11,9 +11,9 @@ use Tuupola\Base62;
 use Ramsey\Uuid\Uuid;
 use Psr\Log\LogLevel;
 
-class Player extends \Spot\Entity
+class User extends \Spot\Entity
 {
-    protected static $table = "players";
+    protected static $table = "users";
 
     public static function fields()
     {
@@ -21,10 +21,8 @@ class Player extends \Spot\Entity
             "id" => ["type" => "integer", "unsigned" => true, "primary" => true, "autoincrement" => true],
             "uid" => ["type" => "string", "length" => 16, "unique" => true],
             "name" => ["type" => "string", "length" => 255],
-            "email" => ["type" => "string", "length" => 255],
-            "email_token" => ["type" => "string", "length" => 255],
-            "hash" => ["type" => "string", "length" => 255],
-            "email_verified" => ["type" => "boolean", "value" => false],
+            "email" => ["type" => "string", "length" => 255, "unique" => true],
+            "facebook_id" => ["type" => "string", "length" => 255],
             "created_at"   => ["type" => "datetime", "value" => new \DateTime()],
             "updated_at"   => ["type" => "datetime", "value" => new \DateTime()]
         ];

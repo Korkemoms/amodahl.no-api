@@ -2,20 +2,19 @@
 
 namespace App;
 
-use App\Player;
+use App\User;
 use League\Fractal;
 
-class PlayerTransformer extends Fractal\TransformerAbstract
+class UserTransformer extends Fractal\TransformerAbstract
 {
 
-    public function transform(Player $player)
+    public function transform(User $player)
     {
         return [
             "uid" => (string)$player->uid ?: null,
             "name" => (string)$player->name ?: null,
             "email" => (string)$player->email ?: null,
-            "email_verified" => !!$player->email_verified,
-            "links"        => [
+            "links" => [
                 "self" => "/players/{$player->uid}"
             ]
         ];
