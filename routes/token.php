@@ -24,8 +24,7 @@ $app->post("/token", function ($request, $response, $arguments) {
       // invalid facebook token
       $data = [
         "status" => "error",
-        "message" => "Could not verify facebook access token",
-        "exception" => $e
+        "message" => "Could not verify facebook access token"
       ];
       return $response->withStatus(403)
           ->withHeader("Content-Type", "application/json")
@@ -45,7 +44,7 @@ $app->post("/token", function ($request, $response, $arguments) {
 
 
     // scopes for the token
-    $requested_scopes = $body["requested_scopes"];
+    $requested_scopes = json_decode($body["requested_scopes"]);
     $valid_scopes = [
         "user.list",
         "user.all"
@@ -73,9 +72,12 @@ $app->post("/token", function ($request, $response, $arguments) {
 
     $secret = getenv("JWT_SECRET");
     $token = JWT::encode($payload, $secret, "HS256");
-    $data["status"] = "ok";
-    $data["token"] = $token;
-
+    $data = [
+      "status" => "ok",
+      "token" => $token,
+      "user" => $user
+    ];
+    
     return $response->withStatus(201)
         ->withHeader("Content-Type", "application/json")
         ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
