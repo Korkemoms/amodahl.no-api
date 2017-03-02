@@ -77,7 +77,7 @@ $app->post("/token", function ($request, $response, $arguments) {
       "token" => $token,
       "user" => $user
     ];
-    
+
     return $response->withStatus(201)
         ->withHeader("Content-Type", "application/json")
         ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
