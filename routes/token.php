@@ -9,11 +9,17 @@ $app->post("/token", function ($request, $response, $arguments) {
 
     // check that user is logged in to facebook
     // and get facebook id and email to store with token
+
     try{
       $facebook = new Facebook\Facebook(array(
         "app_id"  => getenv("FB_APP_ID"),
-        "app_secret" => getenv("FB_APP_SECRET"),
+        "app_secret" => getenv("FB_APP_SECRET")
       ));
+
+      if(!array_key_exists("fb_access_token",$body)){
+        throw new Exception('No fb_access_token found in body >:(');
+      }
+
       $res = $facebook->get("/me?fields=name,email",
         $body["fb_access_token"])->getDecodedBody();
 
@@ -26,9 +32,17 @@ $app->post("/token", function ($request, $response, $arguments) {
         "status" => "error",
         "message" => "Could not verify facebook access token"
       ];
-      return $response->withStatus(403)
-          ->withHeader("Content-Type", "application/json")
-          ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+      // if developer mode allow for test purposes
+      if(getenv("MODE") === "DEVELOPER"){
+        $facebook_id = $body["mock_facebook_id"];
+        $email = $body["email"];
+        $name = $body["name"];
+      } else {
+        return $response->withStatus(403)
+            ->withHeader("Content-Type", "application/json")
+            ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+      }
     }
 
 
