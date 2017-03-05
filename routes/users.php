@@ -26,7 +26,7 @@ $app->get("/users", function ($request, $response, $arguments) {
         ->order(["updated_at" => "DESC"])
         ->first();
 
-    /* Add Last-Modified and ETag headers to response when atleast on user exists. */
+    /* Add Last-Modified and ETag headers to response when atleast one user exists. */
     if ($first) {
         $response = $this->cache->withEtag($response, $first->etag());
         $response = $this->cache->withLastModified($response, $first->timestamp());
@@ -42,6 +42,7 @@ $app->get("/users", function ($request, $response, $arguments) {
     $users = $this->spot->mapper("App\user")
         ->all()
         ->order(["updated_at" => "DESC"]);
+
 
     /* Serialize the response data. */
     $fractal = new Manager();
