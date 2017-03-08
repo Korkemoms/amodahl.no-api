@@ -43,6 +43,15 @@ $console
     ->setCode(function (InputInterface $input, OutputInterface $output) use ($container) {
         print "Migrating database.\n";
         $container["spot"]->mapper("App\User")->migrate();
+        
+        $container["spot"]->mapper("App\ChessGame")->migrate();
+        $container["spot"]->mapper("App\ChessMove")->migrate();
+
+        $container["spot"]->mapper("App\ActionCounter")->migrate();
+        $container["spot"]->mapper("App\ActionCounter")->delete(["id >=" => 0]);
+        $counter = new App\ActionCounter([]);
+        $container["spot"]->mapper("App\ActionCounter")->save($counter);
+
     })
 ;
 
