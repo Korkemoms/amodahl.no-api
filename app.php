@@ -38,6 +38,9 @@ $app->get("/", function ($request, $response, $arguments) {
 require __DIR__ . "/routes/token.php";
 require __DIR__ . "/routes/todos.php";
 require __DIR__ . "/routes/users.php";
+require __DIR__ . "/routes/chessGames.php";
+require __DIR__ . "/routes/chessMoves.php";
+require __DIR__ . "/routes/updates.php";
 
 require __DIR__ . "/src/App/VerificationEmail.php";
 
