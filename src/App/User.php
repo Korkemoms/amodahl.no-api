@@ -24,7 +24,8 @@ class User extends \Spot\Entity
             "email" => ["type" => "string", "length" => 255, "unique" => true],
             "facebook_id" => ["type" => "string", "length" => 255],
             "created_at"   => ["type" => "datetime", "value" => new \DateTime()],
-            "updated_at"   => ["type" => "datetime", "value" => new \DateTime()]
+            "updated_at"   => ["type" => "datetime", "value" => new \DateTime()],
+            "update_index"   => ["type" => "integer", "unsigned" => true, "value" => 0]
         ];
     }
 
@@ -37,6 +38,7 @@ class User extends \Spot\Entity
         $emitter->on("beforeUpdate", function (EntityInterface $entity, MapperInterface $mapper) {
             $entity->updated_at = new \DateTime();
         });
+
     }
 
     public function timestamp()
