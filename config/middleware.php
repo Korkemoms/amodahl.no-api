@@ -43,7 +43,6 @@ $container["JwtAuthentication"] = function ($container) {
         "secret" => getenv("JWT_SECRET"),
         "logger" => $container["logger"],
         "relaxed" => ["localhost", "local.amodahl.no", "amodahl.no"],
-        "secure" => false,
         "error" => function ($request, $response, $arguments) {
             $data["status"] = "error";
             $data["message"] = $arguments["message"];
