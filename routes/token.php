@@ -23,7 +23,7 @@ $app->post("/token", function ($request, $response, $arguments) {
       $res = $facebook->get("/me?fields=name,email",
         $body["fb_access_token"])->getDecodedBody();
 
-      $facebook_id = $res["id"];
+      $facebookId = $res["id"];
       $email = $res["email"];
       $name = $res["name"];
     }catch(Exception $e){
@@ -35,7 +35,7 @@ $app->post("/token", function ($request, $response, $arguments) {
 
       // if developer mode allow for test purposes
       if(getenv("MODE") === "DEVELOPER"){
-        $facebook_id = $body["mock_facebook_id"];
+        $facebookId = $body["mock_facebook_id"];
         $email = $body["email"];
         $name = $body["name"];
       } else {
@@ -45,30 +45,41 @@ $app->post("/token", function ($request, $response, $arguments) {
       }
     }
 
-
     // if not already in db, create new user
-    // TODO
+    $pdo = $this->spot->config()->defaultConnection();
+    // (1) and (2) must be in same transaction to avoid race conditions
+    $pdo->beginTransaction();
+    $updateIndex = App\ActionCounter::getActionId($pdo); // (1)
     $user = [
       "name" => $name,
       "email" => $email,
-      "facebook_id" => $facebook_id
+      "facebook_id" => $facebookId,
+      "update_index" => $updateIndex
     ];
     $user = new App\User($user);
-    $this->spot->mapper("App\user")->save($user);
+    $this->spot->mapper("App\User")->save($user); // (2)
+    $pdo->commit();
 
 
     // scopes for the token
     $requested_scopes = json_decode($body["requested_scopes"]);
     $valid_scopes = [
-        "user.list",
-        "user.all"
+      "user.all",
+      "user.list",
+      "chess-game.all",
+      "chess-game.list",
+      "chess-game.create",
+      "chess-move.all",
+      "chess-move.list",
+      "chess-move.create",
+      "update.all",
+      "update.list"
     ];
     $scopes = array_filter($requested_scopes, function ($needle) use ($valid_scopes) {
         return in_array($needle, $valid_scopes);
     });
 
-
-    // store and return the token
+    // create and return a token
     $now = new DateTime();
     $future = new DateTime("now +1 hours");
     $server = $request->getServerParams();
@@ -79,7 +90,7 @@ $app->post("/token", function ($request, $response, $arguments) {
         "iat" => $now->getTimeStamp(),
         "exp" => $future->getTimeStamp(),
         "jti" => $jti,
-        "fb_id" => $facebook_id,
+        "fb_id" => $facebookId,
         "email" => $email,
         "scope" => $scopes
     ];
