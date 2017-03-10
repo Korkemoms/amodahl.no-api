@@ -15,6 +15,7 @@ use League\Fractal\Serializer\DataArraySerializer;
 
 $app->get("/chess-moves", function ($request, $response, $arguments) {
 
+
     /* Check if token has needed scope. */
     if (false === $this->token->hasScope(["chess-move.all", "chess-move.list"])) {
         throw new ForbiddenException("Token not allowed to list chess moves.", 403);
@@ -36,13 +37,14 @@ $app->get("/chess-moves", function ($request, $response, $arguments) {
 });
 
 $app->post("/chess-moves", function ($request, $response, $arguments) {
-
+    
     /* Check if token has needed scope. */
     if (false === $this->token->hasScope(["chess-move.all", "chess-move.create"])) {
         throw new ForbiddenException("Token not allowed to create chess moves.", 403);
     }
 
     $body = $request->getParsedBody();
+    $body['player_email'] = $this["token"]->decoded->email;
 
 
     $pdo = $this->spot->config()->defaultConnection();
