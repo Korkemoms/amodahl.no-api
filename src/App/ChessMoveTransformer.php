@@ -11,8 +11,8 @@ class ChessMoveTransformer extends Fractal\TransformerAbstract
   {
     return [
       "id" => (string)$chessMove->id ?: null,
-      "chessMoveId" => (string)$chessMove->chess_game_id ?: null,
-      "playerId" => (string)$chessMove->player_id ?: null,
+      "chessGameId" => (string)$chessMove->chess_game_id ?: null,
+      "playerEmail" => (string)$chessMove->player_email ?: null,
       "fromRow" => (string)$chessMove->from_row ?: null,
       "fromCol" => (string)$chessMove->from_col ?: null,
       "toRow" => (string)$chessMove->to_row ?: null,
