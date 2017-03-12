@@ -28,16 +28,26 @@ $app->post("/token", function ($request, $response, $arguments) {
       $name = $res["name"];
     }catch(Exception $e){
       // invalid facebook token
+
+      // if developer mode allow test users
+      $email = $body["email"];
+      $validTestUserEmails = [
+        "guldan@hotmail.com",
+        "krosus@google.com",
+        "elisande@amazon.com"
+      ];
+      $developerMode = getenv("MODE") === "DEVELOPER";
+      $validTestUser = in_array($email, $validTestUserEmails);
+
       $data = [
         "status" => "error",
         "message" => "Could not verify facebook access token"
       ];
 
-      // if developer mode allow for test purposes
-      if(getenv("MODE") === "DEVELOPER"){
+      if($developerMode && $validTestUser){
         $facebookId = $body["mock_facebook_id"];
-        $email = $body["email"];
         $name = $body["name"];
+
       } else {
         return $response->withStatus(403)
             ->withHeader("Content-Type", "application/json")
@@ -81,7 +91,7 @@ $app->post("/token", function ($request, $response, $arguments) {
 
     // create and return a token
     $now = new DateTime();
-    $future = new DateTime("now +1 hours");
+    $future = new DateTime("now +48 hours");
     $server = $request->getServerParams();
 
     $jti = Base62::encode(random_bytes(16));
