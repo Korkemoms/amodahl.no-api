@@ -36,7 +36,7 @@ $app->get("/updates", function ($request, $response, $arguments) {
 
     // get updated players
     if ($updateIndex !== -1) {
-      $users = $this->spot->mapper("App\user")
+      $users = $this->spot->mapper("App\User")
           ->where(['update_index >' => $updateIndex])
           ->order(["update_index" => "DESC"]);
     }else{
