@@ -37,16 +37,24 @@ $app->get("/chess-moves", function ($request, $response, $arguments) {
 });
 
 $app->post("/chess-moves", function ($request, $response, $arguments) {
-    
+
     /* Check if token has needed scope. */
     if (false === $this->token->hasScope(["chess-move.all", "chess-move.create"])) {
         throw new ForbiddenException("Token not allowed to create chess moves.", 403);
     }
 
     $body = $request->getParsedBody();
-    $body['player_email'] = $this["token"]->decoded->email;
+    $body["player_email"] = $this["token"]->decoded->email;
 
+    // check that the move number is uniqe
+    $withDuplicateNumber = $this->spot->mapper("App\ChessMove")
+    ->where(["number" => $body["number"]])
+    ->where(["chess_game_id" => $body["chess_game_id"]]);
 
+    if(sizeof($withDuplicateNumber) > 0){
+      throw new ForbiddenException("Duplicate move number!", 403);
+    }
+    
     $pdo = $this->spot->config()->defaultConnection();
     // (1) and (2) must be in same transaction to avoid race conditions
     $pdo->beginTransaction();
