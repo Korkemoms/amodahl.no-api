@@ -4,56 +4,176 @@ use Ramsey\Uuid\Uuid;
 use Firebase\JWT\JWT;
 use Tuupola\Base62;
 
+// Method: POST, PUT, GET etc
+// Data: array("param" => "value") ==> index.php?param=value
+
+function callAPI($method, $url, $data = false) {
+  $curl = curl_init();
+
+  switch ($method) {
+    case "POST":
+        curl_setopt($curl, CURLOPT_POST, 1);
+        if ($data)
+          curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
+        break;
+      case "PUT":
+        curl_setopt($curl, CURLOPT_PUT, 1);
+        break;
+      default:
+        if ($data)
+          $url = sprintf("%s?%s", $url, http_build_query($data));
+  }
+
+  // Optional Authentication:
+  //curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+  //curl_setopt($curl, CURLOPT_USERPWD, "username:password");
+
+  curl_setopt($curl, CURLOPT_URL, $url);
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+
+  $result = curl_exec($curl);
+
+  curl_close($curl);
+
+  return $result;
+}
+
 $app->post("/token", function ($request, $response, $arguments) {
     $body = $request->getParsedBody();
 
-    // check that user is logged in to facebook
-    // and get facebook id and email to store with token
+    $allowedTypes = [
+      "facebook",
+      "test",
+      "signere",
+      "google"
+    ];
 
-    try{
-      $facebook = new Facebook\Facebook(array(
-        "app_id"  => getenv("FB_APP_ID"),
-        "app_secret" => getenv("FB_APP_SECRET")
-      ));
+    $type = array_key_exists("type", $body) ? $body["type"] : false;
 
-      if(!array_key_exists("fb_access_token",$body)){
-        throw new Exception('No fb_access_token found in body >:(');
-      }
-
-      $res = $facebook->get("/me?fields=name,email",
-        $body["fb_access_token"])->getDecodedBody();
-
-      $facebookId = $res["id"];
-      $email = $res["email"];
-      $name = $res["name"];
-    }catch(Exception $e){
-      // invalid facebook token
-
-      // if developer mode allow test users
-      $email = $body["email"];
-      $validTestUserEmails = [
-        "guldan@hotmail.com",
-        "krosus@google.com",
-        "elisande@amazon.com"
-      ];
-      $developerMode = getenv("MODE") === "DEVELOPER";
-      $validTestUser = in_array($email, $validTestUserEmails);
-
+    // ensure we got type
+    if($type == false) {
       $data = [
         "status" => "error",
-        "message" => "Could not verify facebook access token"
+        "message" => "Missing argument: type"
       ];
 
-      if($developerMode && $validTestUser){
-        $facebookId = $body["mock_facebook_id"];
-        $name = $body["name"];
+      return $response->withStatus(403)
+          ->withHeader("Content-Type", "application/json")
+          ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    }
 
-      } else {
+    // ensure type is allowed
+    else if(!in_array($type,$allowedTypes)) {
+      $data = [
+        "status" => "error",
+        "message" => "Invalid value of argument 'type'",
+        "allowed_values" => $allowedTypes
+      ];
+
+      return $response->withStatus(403)
+          ->withHeader("Content-Type", "application/json")
+          ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    }
+
+    //
+    else if($type == "google") {
+      $googleIdToken = $body["google_id_token"];
+
+      $googleClient = new Google_Client(["client_id" => getenv("GOOGLE_CLIENT_ID")]);
+      $payload = $googleClient->verifyIdToken($googleIdToken);
+
+      if($payload) {
+        // google token has been verified
+        $name = $payload["name"];
+        $email = $payload["email"];
+
+      }else{
+        $data = [
+          "status" => "error",
+          "message" => "invalid google id token"
+        ];
+
+        return $response->withStatus(201)
+            ->withHeader("Content-Type", "application/json")
+            ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+      }
+
+
+    }
+
+    //
+    else if($type == "signere") {
+      $data = [
+        "status" => "error",
+        "message" => "signere authorization not supported yet"
+      ];
+
+      return $response->withStatus(201)
+          ->withHeader("Content-Type", "application/json")
+          ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    }
+
+    //
+    else if($type == "facebook"){
+      try{
+        $facebook = new Facebook\Facebook(array(
+          "app_id"  => getenv("FB_APP_ID"),
+          "app_secret" => getenv("FB_APP_SECRET")
+        ));
+
+        if(!array_key_exists("fb_access_token",$body)){
+          throw new Exception('No fb_access_token found in body >:(');
+        }
+
+        $res = $facebook->get("/me?fields=name,email",
+          $body["fb_access_token"])->getDecodedBody();
+
+        // facebook token has been verified
+        $email = $res["email"];
+        $name = $res["name"];
+      }catch(Exception $e){
         return $response->withStatus(403)
             ->withHeader("Content-Type", "application/json")
             ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
       }
     }
+
+    //
+    else if($type == "test"){
+      // if developer mode allow test users
+      $email = $body["email"];
+      $name = $body["name"];
+
+      $validTestUserEmails = [
+        "guldan@hotmail.com",
+        "krosus@google.com",
+        "elisande@amazon.com"
+      ];
+
+      $developerMode = getenv("MODE") === "DEVELOPER";
+      $validTestUser = in_array($email, $validTestUserEmails);
+
+      if(!$developerMode || !$validTestUser){
+
+        $message = '';
+        if(!$developerMode){
+          $message = 'Test users not allowed, reason: Not in developer mode. ';
+        }
+        if(!$validTestUser){
+          $message .= 'Test users not allowed, reason: Not in developer mode. ';
+        }
+
+        $data = [
+          "status" => "error",
+          "message" => $message
+        ];
+
+        return $response->withStatus(403)
+            ->withHeader("Content-Type", "application/json")
+            ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+      }
+    }
+
 
     // if not already in db, create new user
     $pdo = $this->spot->config()->defaultConnection();
@@ -63,7 +183,6 @@ $app->post("/token", function ($request, $response, $arguments) {
     $user = [
       "name" => $name,
       "email" => $email,
-      "facebook_id" => $facebookId,
       "update_index" => $updateIndex
     ];
     $user = new App\User($user);
@@ -100,7 +219,6 @@ $app->post("/token", function ($request, $response, $arguments) {
         "iat" => $now->getTimeStamp(),
         "exp" => $future->getTimeStamp(),
         "jti" => $jti,
-        "fb_id" => $facebookId,
         "email" => $email,
         "scope" => $scopes
     ];
