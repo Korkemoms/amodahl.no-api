@@ -22,7 +22,6 @@ class User extends \Spot\Entity
             "uid" => ["type" => "string", "length" => 16, "unique" => true],
             "name" => ["type" => "string", "length" => 255],
             "email" => ["type" => "string", "length" => 255, "unique" => true],
-            "facebook_id" => ["type" => "string", "length" => 255],
             "created_at"   => ["type" => "datetime", "value" => new \DateTime()],
             "updated_at"   => ["type" => "datetime", "value" => new \DateTime()],
             "update_index"   => ["type" => "integer", "unsigned" => true, "value" => 0]
