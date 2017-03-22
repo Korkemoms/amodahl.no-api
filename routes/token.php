@@ -66,29 +66,28 @@ $app->post("/token", function ($request, $response, $arguments) {
       ));
 
       $firstResult = json_decode(curl_exec($curl));
-      $firstDebug = curl_getinfo($curl);
+      //$firstDebug = curl_getinfo($curl);
       curl_close($curl);
       $accessToken = $firstResult->access_token;
 
 
       // then get URL user can open in iframe to authenticate
       $curl = curl_init();
-      $fields = [
-        "IdentityProviderType"=> 2,
+      $dataString = json_encode([
+        "IdentityProvider"=> "NO_BANKID_WEB",
         "ReturnUrls" => [
           "Cancel" => "https://amodahl.no",
           "Abort" => "https://amodahl.no",
           "Error" => "https://amodahl.no",
           "Success" => "https://amodahl.no"
-        ],
-        "ExternalReference" => "123"
-      ];
+        ]
+      ]);
 
       date_default_timezone_set('UTC');
       $timeStamp = str_replace("+00:00", "", date(DATE_ATOM));
 
-      curl_setopt($curl, CURLOPT_POST,count($fields));
-      curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($fields));
+      //curl_setopt($curl, CURLOPT_POST,count($fields));
+      curl_setopt($curl, CURLOPT_POSTFIELDS, $dataString);
       curl_setopt($curl, CURLOPT_URL,
         "https://idtest.signere.no/api/identify/".getEnv("SIGNERE_ACCOUNT_ID"));
       curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 0);
@@ -96,21 +95,22 @@ $app->post("/token", function ($request, $response, $arguments) {
       curl_setopt($curl, CURLINFO_HEADER_OUT , true);
 
       curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+        'Content-Type: application/json',
+        'Content-Length: ' . strlen($dataString),
         "API-ID: ".getenv("SIGNERE_ACCOUNT_ID"),
         "Authorization: Bearer $accessToken",
         "API-TIMESTAMP: ".$timeStamp
       ));
 
       $secondResult = json_decode(curl_exec($curl));
-      $secondDebug = curl_getinfo($curl);
+      //$secondDebug = curl_getinfo($curl);
       curl_close($curl);
 
       // return results to client
       $data = [
-        "firstResult" => $firstResult,
-        "firstDebug" => $firstDebug,
-        "secondResult" => $secondResult,
-        "secondDebug" => $secondDebug
+        "RequestId" => $secondResult->RequestId,
+        "Url" => $secondResult->Url,
+        "AccessToken" => $firstResult->access_token
       ];
 
       return $response->withStatus(201)
