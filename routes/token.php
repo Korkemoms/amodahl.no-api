@@ -4,39 +4,6 @@ use Ramsey\Uuid\Uuid;
 use Firebase\JWT\JWT;
 use Tuupola\Base62;
 
-// Method: POST, PUT, GET etc
-// Data: array("param" => "value") ==> index.php?param=value
-
-function callAPI($method, $url, $data = false) {
-  $curl = curl_init();
-
-  switch ($method) {
-    case "POST":
-        curl_setopt($curl, CURLOPT_POST, 1);
-        if ($data)
-          curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
-        break;
-      case "PUT":
-        curl_setopt($curl, CURLOPT_PUT, 1);
-        break;
-      default:
-        if ($data)
-          $url = sprintf("%s?%s", $url, http_build_query($data));
-  }
-
-  // Optional Authentication:
-  //curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-  //curl_setopt($curl, CURLOPT_USERPWD, "username:password");
-
-  curl_setopt($curl, CURLOPT_URL, $url);
-  curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-
-  $result = curl_exec($curl);
-
-  curl_close($curl);
-
-  return $result;
-}
 
 $app->post("/token", function ($request, $response, $arguments) {
     $body = $request->getParsedBody();
@@ -76,6 +43,82 @@ $app->post("/token", function ($request, $response, $arguments) {
     }
 
     //
+    else if($type == "signere") {
+
+      // first get access token
+      $curl = curl_init();
+      $fields = [
+        "grant_type" => "client_credentials",
+        "scope" => "root"
+      ];
+      $nameAndPw = getenv("SIGNERE_CLIENT_ID").":".getenv("SIGNERE_CLIENT_SECRET");
+
+      curl_setopt($curl, CURLOPT_POST,count($fields));
+      curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($fields));
+      curl_setopt($curl, CURLOPT_URL, "https://oauth2test.signere.com/connect/token");
+      curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+      curl_setopt($curl, CURLOPT_USERPWD, $nameAndPw);
+      curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 0);
+      curl_setopt($curl, CURLOPT_RETURNTRANSFER, true );
+      curl_setopt($curl, CURLINFO_HEADER_OUT , true);
+      curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+        "Content-Type: application/x-www-form-urlencoded"
+      ));
+
+      $firstResult = json_decode(curl_exec($curl));
+      $firstDebug = curl_getinfo($curl);
+      curl_close($curl);
+      $accessToken = $firstResult->access_token;
+
+
+      // then get URL user can open in iframe to authenticate
+      $curl = curl_init();
+      $fields = [
+        "IdentityProviderType"=> 2,
+        "ReturnUrls" => [
+          "Cancel" => "https://amodahl.no",
+          "Abort" => "https://amodahl.no",
+          "Error" => "https://amodahl.no",
+          "Success" => "https://amodahl.no"
+        ],
+        "ExternalReference" => "123"
+      ];
+
+      date_default_timezone_set('UTC');
+      $timeStamp = str_replace("+00:00", "", date(DATE_ATOM));
+
+      curl_setopt($curl, CURLOPT_POST,count($fields));
+      curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($fields));
+      curl_setopt($curl, CURLOPT_URL,
+        "https://idtest.signere.no/api/identify/".getEnv("SIGNERE_ACCOUNT_ID"));
+      curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 0);
+      curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+      curl_setopt($curl, CURLINFO_HEADER_OUT , true);
+
+      curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+        "API-ID: ".getenv("SIGNERE_ACCOUNT_ID"),
+        "Authorization: Bearer $accessToken",
+        "API-TIMESTAMP: ".$timeStamp
+      ));
+
+      $secondResult = json_decode(curl_exec($curl));
+      $secondDebug = curl_getinfo($curl);
+      curl_close($curl);
+
+      // return results to client
+      $data = [
+        "firstResult" => $firstResult,
+        "firstDebug" => $firstDebug,
+        "secondResult" => $secondResult,
+        "secondDebug" => $secondDebug
+      ];
+
+      return $response->withStatus(201)
+          ->withHeader("Content-Type", "application/json")
+          ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    }
+
+    //
     else if($type == "google") {
       $googleIdToken = $body["google_id_token"];
 
@@ -99,18 +142,6 @@ $app->post("/token", function ($request, $response, $arguments) {
       }
 
 
-    }
-
-    //
-    else if($type == "signere") {
-      $data = [
-        "status" => "error",
-        "message" => "signere authorization not supported yet"
-      ];
-
-      return $response->withStatus(201)
-          ->withHeader("Content-Type", "application/json")
-          ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     }
 
     //
