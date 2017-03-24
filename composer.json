@@ -1,18 +1,18 @@
 {
-    "name": "tuupola/slim-api-skeleton",
-    "description": "Slim 3 + Spot + Monolog API skeleton",
+    "name": "Korkemoms/amodahl.no-api",
+    "description": "API for games and stuff :D",
     "type": "project",
     "keywords": [
         "slim",
         "skeleton"
     ],
-    "homepage": "https://github.com/tuupola/slim-api-skeleton",
+    "homepage": "https://amodahl.no",
     "license": "MIT",
     "authors": [
         {
-            "name": "Mika Tuupola",
-            "email": "tuupola@appelsiini.net",
-            "homepage": "http://www.appelsiini.net/",
+            "name": "Andreas Modahl",
+            "email": "a_modahl@hotmail.com",
+            "homepage": "https://amodahl.no",
             "role": "Developer"
         }
     ],
