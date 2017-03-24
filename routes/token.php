@@ -5,6 +5,50 @@ use Firebase\JWT\JWT;
 use Tuupola\Base62;
 
 
+function returnError($response, $status, $data, $result){
+  $data["status"] = "error";
+  if($result !== null && isset($result->message)){
+    $data["externalMessage"] = $result->message;
+  }
+  if($result != null && is_array($result) && array_key_exists("message", $result)){
+    $data["externalMessage"] = $result["message"];
+  }
+
+  return $response->withStatus($status)
+      ->withHeader("Content-Type", "application/json")
+      ->withHeader("Cache-control", "no-cache")
+      ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+}
+
+function returnOk($response, $status, $data){
+  $data = array_merge(["status" => "ok"], $data);
+  return $response->withStatus($status)
+      ->withHeader("Content-Type", "application/json")
+      ->withHeader("Cache-control", "no-cache")
+      ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+}
+
+/* Generate a JSON web token that gives acces to amodahl.no-api for some time. */
+function generateToken($userUid, $scopes, $request){
+  $now = new DateTime();
+  $future = new DateTime("now +48 hours");
+  $server = $request->getServerParams();
+
+  $jti = Base62::encode(random_bytes(16));
+
+  $payload = [
+      "iat" => $now->getTimeStamp(),
+      "exp" => $future->getTimeStamp(),
+      "jti" => $jti,
+      "uid" => $userUid,
+      "scope" => $scopes
+  ];
+
+  $secret = getenv("JWT_SECRET");
+  $token = JWT::encode($payload, $secret, "HS256");
+  return $token;
+}
+
 $app->post("/token", function ($request, $response, $arguments) {
     $body = $request->getParsedBody();
 
@@ -19,103 +63,154 @@ $app->post("/token", function ($request, $response, $arguments) {
 
     // ensure we got type
     if($type == false) {
-      $data = [
-        "status" => "error",
+      return returnError($response, 403, [
         "message" => "Missing argument: type"
-      ];
-
-      return $response->withStatus(403)
-          ->withHeader("Content-Type", "application/json")
-          ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+      ]);
     }
 
     // ensure type is allowed
     else if(!in_array($type,$allowedTypes)) {
-      $data = [
-        "status" => "error",
+      return returnError($response, 403, [
         "message" => "Invalid value of argument 'type'",
         "allowed_values" => $allowedTypes
-      ];
-
-      return $response->withStatus(403)
-          ->withHeader("Content-Type", "application/json")
-          ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+      ]);
     }
 
-    //
+
     else if($type == "signere") {
 
-      // first get access token
-      $curl = curl_init();
-      $fields = [
-        "grant_type" => "client_credentials",
-        "scope" => "root"
-      ];
-      $nameAndPw = getenv("SIGNERE_CLIENT_ID").":".getenv("SIGNERE_CLIENT_SECRET");
+      if(!array_key_exists("signere_access_token", $body)){
+        // signere stage 1
+        // get signere OAuth access token
 
-      curl_setopt($curl, CURLOPT_POST,count($fields));
-      curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($fields));
-      curl_setopt($curl, CURLOPT_URL, "https://oauth2test.signere.com/connect/token");
-      curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-      curl_setopt($curl, CURLOPT_USERPWD, $nameAndPw);
-      curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 0);
-      curl_setopt($curl, CURLOPT_RETURNTRANSFER, true );
-      curl_setopt($curl, CURLINFO_HEADER_OUT , true);
-      curl_setopt($curl, CURLOPT_HTTPHEADER, array(
-        "Content-Type: application/x-www-form-urlencoded"
-      ));
+        $curl = curl_init();
+        $fields = [
+          "grant_type" => "client_credentials",
+          "scope" => "root"
+        ];
+        $nameAndPw = getenv("SIGNERE_CLIENT_ID").":".getenv("SIGNERE_CLIENT_SECRET");
 
-      $firstResult = json_decode(curl_exec($curl));
-      //$firstDebug = curl_getinfo($curl);
-      curl_close($curl);
-      $accessToken = $firstResult->access_token;
+        curl_setopt($curl, CURLOPT_POST,count($fields));
+        curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($fields));
+        curl_setopt($curl, CURLOPT_URL, "https://oauth2test.signere.com/connect/token");
+        curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+        curl_setopt($curl, CURLOPT_USERPWD, $nameAndPw);
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 0);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true );
+        curl_setopt($curl, CURLINFO_HEADER_OUT , true);
+        curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+          "Content-Type: application/x-www-form-urlencoded"
+        ));
+
+        $result = json_decode(curl_exec($curl));
+        curl_close($curl);
+
+        $accessToken = isset($result->access_token) ? $result->access_token : null;
+      }else{
+        $accessToken = $body["signereAccessToken"];
+      }
+
+      // verify stage 1
+      if(!isset($accessToken) || $accessToken == null){
+        return returnError($response, 403, [
+          "message" => "Missing OAuth2 access token from signere"
+        ], $result);
+      }
 
 
-      // then get URL user can open in iframe to authenticate
-      $curl = curl_init();
-      $dataString = json_encode([
-        "IdentityProvider"=> "NO_BANKID_WEB",
-        "ReturnUrls" => [
-          "Cancel" => "https://amodahl.no",
-          "Abort" => "https://amodahl.no",
-          "Error" => "https://amodahl.no",
-          "Success" => "https://amodahl.no"
-        ]
-      ]);
+      if(!array_key_exists("signere_request_id", $body)) {
+        // signere stage 2
+        // get URL user can open in iframe to authenticate
+        $curl = curl_init();
 
-      date_default_timezone_set('UTC');
-      $timeStamp = str_replace("+00:00", "", date(DATE_ATOM));
+        $url = getenv("PAGE_URL");
+        $dataString = json_encode([
+          "IdentityProvider" => "NO_BANKID_WEB",
+          "ReturnUrls" => [
+            "Cancel" => "$url/signere-login?signereStatus=[0]",
+            "Error" => "$url/signere-login?signereStatus=[0]",
+            "Abort" => "$url/signere-login?signereRequestId=[1]&signereExternalId=[2]",
+            "Success" => "$url/signere-login?signereRequestId=[1]&signereExternalId=[2]"
+          ],
+          "ExternalReference" => "TestExternalReference",
+          "IFrame" => [
+            "Domain" => getenv("PAGE_URL"),
+            "WebMessaging" => true
+          ],
+          "AddonServices" => [
+            "no.personal.info" => null
+          ]
+        ]);
 
-      //curl_setopt($curl, CURLOPT_POST,count($fields));
-      curl_setopt($curl, CURLOPT_POSTFIELDS, $dataString);
-      curl_setopt($curl, CURLOPT_URL,
-        "https://idtest.signere.no/api/identify/".getEnv("SIGNERE_ACCOUNT_ID"));
-      curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 0);
-      curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-      curl_setopt($curl, CURLINFO_HEADER_OUT , true);
+        date_default_timezone_set('UTC');
+        $timeStamp = str_replace("+00:00", "", date(DATE_ATOM));
 
-      curl_setopt($curl, CURLOPT_HTTPHEADER, array(
-        'Content-Type: application/json',
-        'Content-Length: ' . strlen($dataString),
-        "API-ID: ".getenv("SIGNERE_ACCOUNT_ID"),
-        "Authorization: Bearer $accessToken",
-        "API-TIMESTAMP: ".$timeStamp
-      ));
+        //curl_setopt($curl, CURLOPT_POST,count($fields));
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $dataString);
+        curl_setopt($curl, CURLOPT_URL,
+          "https://idtest.signere.no/api/identify/".getEnv("SIGNERE_ACCOUNT_ID"));
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 0);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLINFO_HEADER_OUT , true);
+        curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+          'Content-Type: application/json',
+          'Content-Length: ' . strlen($dataString),
+          "API-ID: " . getenv("SIGNERE_ACCOUNT_ID"),
+          "API-TIMESTAMP: $timeStamp",
+          "Authorization: Bearer $accessToken"
+        ));
 
-      $secondResult = json_decode(curl_exec($curl));
-      //$secondDebug = curl_getinfo($curl);
-      curl_close($curl);
+        $result = json_decode(curl_exec($curl));
+        curl_close($curl);
 
-      // return results to client
-      $data = [
-        "RequestId" => $secondResult->RequestId,
-        "Url" => $secondResult->Url,
-        "AccessToken" => $firstResult->access_token
-      ];
+        // verify stage 2
+        if(!isset($result->Url) || $result->Url == null){
+          return returnError($response, 403, [
+            "message" => "Missing URL from signere"
+          ], $result);
+        }
 
-      return $response->withStatus(201)
-          ->withHeader("Content-Type", "application/json")
-          ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+        // return results to client
+        $data = [
+          "RequestId" => $result->RequestId,
+          "Url" => $result->Url
+        ];
+
+        return returnOk($response, 201, $data);
+
+      } else {
+        // signere stage 3
+        // verify request id and personal info
+
+        $signereRequestId = $body["signere_request_id"];
+        $curl = curl_init();
+        date_default_timezone_set('UTC');
+        $timeStamp = str_replace("+00:00", "", date(DATE_ATOM));
+
+        curl_setopt($curl, CURLOPT_URL,
+          "https://idtest.signere.no/api/identify/".getEnv("SIGNERE_ACCOUNT_ID"));
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 0);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLINFO_HEADER_OUT , true);
+        curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+          "API-ID: " . getenv("SIGNERE_ACCOUNT_ID"),
+          "Authorization: Bearer $accessToken",
+          "API-TIMESTAMP: $timeStamp",
+          "requestId: $signereRequestId"
+        ));
+
+        $result = json_decode(curl_exec($curl));
+        $debug = curl_getinfo($curl);
+        curl_close($curl);
+
+        $data = [
+          "result" => $result,
+          "debug" => $debug
+        ];
+
+        // TODO make stage 3 work and verify
+        return returnOk($response, 201, $data);
+      }
     }
 
     //
@@ -129,19 +224,12 @@ $app->post("/token", function ($request, $response, $arguments) {
         // google token has been verified
         $name = $payload["name"];
         $email = $payload["email"];
-
       }else{
-        $data = [
+        return returnError($response, 403,[
           "status" => "error",
-          "message" => "invalid google id token"
-        ];
-
-        return $response->withStatus(201)
-            ->withHeader("Content-Type", "application/json")
-            ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+          "message" => "Could not log in with google (probably invalid id token)"
+        ], $payload);
       }
-
-
     }
 
     //
@@ -163,9 +251,10 @@ $app->post("/token", function ($request, $response, $arguments) {
         $email = $res["email"];
         $name = $res["name"];
       }catch(Exception $e){
-        return $response->withStatus(403)
-            ->withHeader("Content-Type", "application/json")
-            ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+        return returnError($response, 403,[
+          "status" => "error",
+          "message" => "Could not log in with facebook (probably invalid access token)"
+        ], $e);
       }
     }
 
@@ -194,14 +283,10 @@ $app->post("/token", function ($request, $response, $arguments) {
           $message .= 'Test users not allowed, reason: Not in developer mode. ';
         }
 
-        $data = [
+        return returnError($response, 403,[
           "status" => "error",
           "message" => $message
-        ];
-
-        return $response->withStatus(403)
-            ->withHeader("Content-Type", "application/json")
-            ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+        ], $e);
       }
     }
 
@@ -218,7 +303,11 @@ $app->post("/token", function ($request, $response, $arguments) {
     ];
     $user = new App\User($user);
     $this->spot->mapper("App\User")->save($user); // (2)
-    $pdo->commit();
+    if(!$pdo->commit()){
+      $user = $this->spot->mapper("App\user")
+          ->where(["email" => $email]) // TODO same for social security number
+          ->first();
+    }
 
 
     // scopes for the token
@@ -239,32 +328,15 @@ $app->post("/token", function ($request, $response, $arguments) {
         return in_array($needle, $valid_scopes);
     });
 
-    // create and return a token
-    $now = new DateTime();
-    $future = new DateTime("now +48 hours");
-    $server = $request->getServerParams();
-
-    $jti = Base62::encode(random_bytes(16));
-
-    $payload = [
-        "iat" => $now->getTimeStamp(),
-        "exp" => $future->getTimeStamp(),
-        "jti" => $jti,
-        "email" => $email,
-        "scope" => $scopes
-    ];
-
-    $secret = getenv("JWT_SECRET");
-    $token = JWT::encode($payload, $secret, "HS256");
+    // return a token
+    $token = generateToken($user->uid, $scopes, $request);
     $data = [
       "status" => "ok",
       "token" => $token,
       "user" => $user
     ];
 
-    return $response->withStatus(201)
-        ->withHeader("Content-Type", "application/json")
-        ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return returnOk($response, 201, $data);
 });
 
 /* This is just for debugging, not usefull in real life. */
