@@ -10,7 +10,6 @@ class UserTransformer extends Fractal\TransformerAbstract
     public function transform(User $user)
     {
         return [
-            "id" => (string)$user->id ?: null,
             "uid" => (string)$user->uid ?: null,
             "name" => (string)$user->name ?: null,
             "email" => (string)$user->email ?: null,

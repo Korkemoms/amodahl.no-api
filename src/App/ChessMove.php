@@ -20,7 +20,7 @@ class ChessMove extends \Spot\Entity
         return [
             "id" => ["type" => "integer", "unsigned" => true, "primary" => true, "autoincrement" => true],
             "chess_game_id" => ["type" => "integer", "unsigned" => true],
-            "player_email" => ["type" => "string", "length" => 255],
+            "player_uid" => ["type" => "string", "length" => 16],
             "from_row" => ["type" => "integer", "unsigned" => true],
             "from_col" => ["type" => "integer", "unsigned" => true],
             "to_row" => ["type" => "integer", "unsigned" => true],

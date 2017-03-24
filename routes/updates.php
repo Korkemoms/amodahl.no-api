@@ -23,7 +23,7 @@ use League\Fractal\Serializer\DataArraySerializer;
 // TODO update_index should be indexed in the database to improve speed
 $app->get("/updates", function ($request, $response, $arguments) {
 
-    $email = $this["token"]->decoded->email;
+    $uid = $this["token"]->decoded->uid;
 
     /* Check if token has needed scope. */
     if (false === $this->token->hasScope(["update.all", "update.list"])) {

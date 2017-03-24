@@ -44,7 +44,7 @@ $app->post("/chess-moves", function ($request, $response, $arguments) {
     }
 
     $body = $request->getParsedBody();
-    $body["player_email"] = $this["token"]->decoded->email;
+    $body["player_uid"] = $this["token"]->decoded->uid;
 
     // check that the move number is uniqe
     $withDuplicateNumber = $this->spot->mapper("App\ChessMove")
@@ -54,7 +54,7 @@ $app->post("/chess-moves", function ($request, $response, $arguments) {
     if(sizeof($withDuplicateNumber) > 0){
       throw new ForbiddenException("Duplicate move number!", 403);
     }
-    
+
     $pdo = $this->spot->config()->defaultConnection();
     // (1) and (2) must be in same transaction to avoid race conditions
     $pdo->beginTransaction();
