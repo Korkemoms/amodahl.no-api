@@ -2,10 +2,6 @@
     "name": "Korkemoms/amodahl.no-api",
     "description": "API for games and stuff :D",
     "type": "project",
-    "keywords": [
-        "slim",
-        "skeleton"
-    ],
     "homepage": "https://amodahl.no",
     "license": "MIT",
     "authors": [

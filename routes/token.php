@@ -305,8 +305,10 @@ $app->post("/token", function ($request, $response, $arguments) {
     $this->spot->mapper("App\User")->save($user); // (2)
     if(!$pdo->commit()){
       $user = $this->spot->mapper("App\user")
-          ->where(["email" => $email]) // TODO same for social security number
+          ->where(["email" => $email])
           ->first();
+          // TODO use social security number for accounts without email
+
     }
 
 
@@ -341,10 +343,6 @@ $app->post("/token", function ($request, $response, $arguments) {
 
 /* This is just for debugging, not usefull in real life. */
 $app->get("/dump", function ($request, $response, $arguments) {
-    print_r($this->token);
-});
-
-$app->post("/dump", function ($request, $response, $arguments) {
     print_r($this->token);
 });
 
