@@ -43,7 +43,7 @@ $app->post("/chess-moves", function ($request, $response, $arguments) {
         throw new ForbiddenException("Token not allowed to create chess moves.", 403);
     }
 
-    $body = $request->getParsedBody();
+    $body = json_decode($request->getBody(), true);
     $body["player_uid"] = $this["token"]->decoded->uid;
 
     // check that the move number is uniqe

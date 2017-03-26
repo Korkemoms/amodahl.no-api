@@ -42,8 +42,7 @@ $app->post("/chess-games", function ($request, $response, $arguments) {
         throw new ForbiddenException("Token not allowed to create chess games.", 403);
     }
 
-    $body = $request->getParsedBody();
-
+    $body = json_decode($request->getBody(), true);
 
     $pdo = $this->spot->config()->defaultConnection();
     // (1) and (2) must be in same transaction to avoid race conditions
@@ -107,7 +106,7 @@ $app->patch("/chess-games/{uid}", function ($request, $response, $arguments) {
     };
 
 
-    $body = $request->getParsedBody();
+    $body = json_decode($request->getBody(), true);
 
     $pdo = $this->spot->config()->defaultConnection();
     // (1) and (2) must be in same transaction to avoid race conditions
@@ -145,8 +144,8 @@ $app->put("/chess-games/{uid}", function ($request, $response, $arguments) {
     };
 
 
-    $body = $request->getParsedBody();
-
+    $body = json_decode($request->getBody(), true);
+    
     $pdo = $this->spot->config()->defaultConnection();
     // (1) and (2) must be in same transaction to avoid race conditions
     $pdo->beginTransaction();

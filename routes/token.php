@@ -50,8 +50,8 @@ function generateToken($userUid, $scopes, $request){
 }
 
 $app->post("/token", function ($request, $response, $arguments) {
-    $body = $request->getParsedBody();
-
+    $body = json_decode($request->getBody(), true);
+    
     $allowedTypes = [
       "facebook",
       "test",
@@ -79,7 +79,7 @@ $app->post("/token", function ($request, $response, $arguments) {
 
     else if($type == "signere") {
 
-      if(!array_key_exists("signere_access_token", $body)){
+      if(!array_key_exists("fbAccessToken", $body)){
         // signere stage 1
         // get signere OAuth access token
 
@@ -118,7 +118,7 @@ $app->post("/token", function ($request, $response, $arguments) {
       }
 
 
-      if(!array_key_exists("signere_request_id", $body)) {
+      if(!array_key_exists("signereRequestId", $body)) {
         // signere stage 2
         // get URL user can open in iframe to authenticate
         $curl = curl_init();
@@ -182,7 +182,7 @@ $app->post("/token", function ($request, $response, $arguments) {
         // signere stage 3
         // verify request id and personal info
 
-        $signereRequestId = $body["signere_request_id"];
+        $signereRequestId = $body["signereRequestId"];
         $curl = curl_init();
         date_default_timezone_set('UTC');
         $timeStamp = str_replace("+00:00", "", date(DATE_ATOM));
@@ -215,7 +215,7 @@ $app->post("/token", function ($request, $response, $arguments) {
 
     //
     else if($type == "google") {
-      $googleIdToken = $body["google_id_token"];
+      $googleIdToken = $body["googleIdToken"];
 
       $googleClient = new Google_Client(["client_id" => getenv("GOOGLE_CLIENT_ID")]);
       $payload = $googleClient->verifyIdToken($googleIdToken);
@@ -240,12 +240,12 @@ $app->post("/token", function ($request, $response, $arguments) {
           "app_secret" => getenv("FB_APP_SECRET")
         ));
 
-        if(!array_key_exists("fb_access_token",$body)){
+        if(!array_key_exists("fbAccessToken",$body)){
           throw new Exception('No fb_access_token found in body >:(');
         }
 
         $res = $facebook->get("/me?fields=name,email",
-          $body["fb_access_token"])->getDecodedBody();
+          $body["fbAccessToken"])->getDecodedBody();
 
         // facebook token has been verified
         $email = $res["email"];
@@ -313,7 +313,7 @@ $app->post("/token", function ($request, $response, $arguments) {
 
 
     // scopes for the token
-    $requested_scopes = json_decode($body["requested_scopes"]);
+    $requested_scopes = json_decode($body["requestedScopes"]);
     $valid_scopes = [
       "user.all",
       "user.list",
