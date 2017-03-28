@@ -81,7 +81,7 @@ $app->post("/token", function ($request, $response, $arguments) {
 
       if(!array_key_exists("signereAccessToken", $body)){
         // signere stage 1
-        // get signere OAuth access token
+        // get signere OAuth2 access token
 
         $curl = curl_init();
         $fields = [
@@ -197,8 +197,7 @@ $app->post("/token", function ($request, $response, $arguments) {
         curl_setopt($curl, CURLOPT_HTTPHEADER, array(
           "API-ID: " . getenv("SIGNERE_ACCOUNT_ID"),
           "Authorization: Bearer $accessToken",
-          "API-TIMESTAMP: $timeStamp",
-          "requestId: $signereRequestId"
+          "API-TIMESTAMP: $timeStamp"
         ));
 
         $result = json_decode(curl_exec($curl), true);
@@ -212,8 +211,6 @@ $app->post("/token", function ($request, $response, $arguments) {
         // success
       }
     }
-
-    //     "IdentityProviderUniqueId": "9578-6000-4-149622",
 
     else if($type == "google") {
       $googleIdToken = $body["googleIdToken"];
