@@ -21,7 +21,8 @@ class User extends \Spot\Entity
             "id" => ["type" => "integer", "unsigned" => true, "primary" => true, "autoincrement" => true],
             "uid" => ["type" => "string", "length" => 16, "unique" => true],
             "name" => ["type" => "string", "length" => 255],
-            "email" => ["type" => "string", "length" => 255, "unique" => true],
+            "email" => ["type" => "string", "length" => 255],
+            "signere_uid" => ["type" => "string", "length" => 255],
             "created_at"   => ["type" => "datetime", "value" => new \DateTime()],
             "updated_at"   => ["type" => "datetime", "value" => new \DateTime()],
             "update_index"   => ["type" => "integer", "unsigned" => true, "value" => 0]
