@@ -59,10 +59,10 @@ $app->post("/token", function ($request, $response, $arguments) {
       "google"
     ];
 
-    $type = array_key_exists("type", $body) ? $body["type"] : false;
+    $type = array_key_exists("type", $body) ? $body["type"] : null;
 
     // ensure we got type
-    if($type == false) {
+    if($type == null) {
       return returnError($response, 403, [
         "message" => "Missing argument: type"
       ]);
