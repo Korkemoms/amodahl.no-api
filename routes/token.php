@@ -51,7 +51,7 @@ function generateToken($userUid, $scopes, $request){
 
 $app->post("/token", function ($request, $response, $arguments) {
     $body = json_decode($request->getBody(), true);
-    
+
     $allowedTypes = [
       "facebook",
       "test",
@@ -79,7 +79,7 @@ $app->post("/token", function ($request, $response, $arguments) {
 
     else if($type == "signere") {
 
-      if(!array_key_exists("fbAccessToken", $body)){
+      if(!array_key_exists("signereAccessToken", $body)){
         // signere stage 1
         // get signere OAuth access token
 
@@ -183,12 +183,14 @@ $app->post("/token", function ($request, $response, $arguments) {
         // verify request id and personal info
 
         $signereRequestId = $body["signereRequestId"];
+        $signereAccountId = getEnv("SIGNERE_ACCOUNT_ID");
         $curl = curl_init();
         date_default_timezone_set('UTC');
         $timeStamp = str_replace("+00:00", "", date(DATE_ATOM));
 
         curl_setopt($curl, CURLOPT_URL,
-          "https://idtest.signere.no/api/identify/".getEnv("SIGNERE_ACCOUNT_ID"));
+          "https://idtest.signere.no/api/identify/"
+          ."$signereAccountId?requestId=$signereRequestId");
         curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 0);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($curl, CURLINFO_HEADER_OUT , true);
@@ -199,21 +201,20 @@ $app->post("/token", function ($request, $response, $arguments) {
           "requestId: $signereRequestId"
         ));
 
-        $result = json_decode(curl_exec($curl));
+        $result = json_decode(curl_exec($curl), true);
         $debug = curl_getinfo($curl);
         curl_close($curl);
 
-        $data = [
-          "result" => $result,
-          "debug" => $debug
-        ];
+        $name = $result["FirstName"]." ".$result["LastName"];
+        $email = null;
+        $signereUid = $result["IdentityProvider"].$result["IdentityProviderUniqueId"];
 
-        // TODO make stage 3 work and verify
-        return returnOk($response, 201, $data);
+        // success
       }
     }
 
-    //
+    //     "IdentityProviderUniqueId": "9578-6000-4-149622",
+
     else if($type == "google") {
       $googleIdToken = $body["googleIdToken"];
 
@@ -224,6 +225,7 @@ $app->post("/token", function ($request, $response, $arguments) {
         // google token has been verified
         $name = $payload["name"];
         $email = $payload["email"];
+        $signereUid = null;
       }else{
         return returnError($response, 403,[
           "status" => "error",
@@ -250,6 +252,7 @@ $app->post("/token", function ($request, $response, $arguments) {
         // facebook token has been verified
         $email = $res["email"];
         $name = $res["name"];
+        $signereUid = null;
       }catch(Exception $e){
         return returnError($response, 403,[
           "status" => "error",
@@ -263,6 +266,7 @@ $app->post("/token", function ($request, $response, $arguments) {
       // if developer mode allow test users
       $email = $body["email"];
       $name = $body["name"];
+      $signereUid = null;
 
       $validTestUserEmails = [
         "guldan@hotmail.com",
@@ -290,27 +294,41 @@ $app->post("/token", function ($request, $response, $arguments) {
       }
     }
 
-
     // if not already in db, create new user
     $pdo = $this->spot->config()->defaultConnection();
     // (1) and (2) must be in same transaction to avoid race conditions
     $pdo->beginTransaction();
     $updateIndex = App\ActionCounter::getActionId($pdo); // (1)
-    $user = [
-      "name" => $name,
-      "email" => $email,
-      "update_index" => $updateIndex
-    ];
-    $user = new App\User($user);
-    $this->spot->mapper("App\User")->save($user); // (2)
-    if(!$pdo->commit()){
-      $user = $this->spot->mapper("App\user")
+
+    // see if user is already registered
+    $user = null;
+    if($email != null){
+      $user = $this->spot->mapper("App\User")
           ->where(["email" => $email])
           ->first();
-          // TODO use social security number for accounts without email
-
+    }else if($signereUid != null){
+      $user = $this->spot->mapper("App\User")
+          ->where(["signere_uid" => $signereUid])
+          ->first();
+    }else{
+      return returnError($response, 403,[
+        "status" => "error",
+        "message" => "Could not get email and could not get signere uid"
+      ]);
     }
 
+    if($user == null){
+      // register user
+      $user = [
+        "name" => $name,
+        "email" => $email,
+        "signere_uid" => $signereUid,
+        "update_index" => $updateIndex
+      ];
+      $user = new App\User($user);
+      $this->spot->mapper("App\User")->save($user); // (2)
+      $pdo->commit();
+    }
 
     // scopes for the token
     $requested_scopes = json_decode($body["requestedScopes"]);
